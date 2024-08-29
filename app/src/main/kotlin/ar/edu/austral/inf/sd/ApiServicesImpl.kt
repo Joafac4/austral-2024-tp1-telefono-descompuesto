@@ -60,9 +60,16 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
         val receivedHash = doHash(message.encodeToByteArray(), salt)
         val receivedContentType = currentRequest.getPart("message")?.contentType ?: "nada"
         val receivedLength = message.length
+        val signature = Signature(
+            name = myServerName,
+            hash = receivedHash,
+            contentType = receivedContentType,
+            contentLength = receivedLength
+        )
         if (nextNode != null) {
             // Soy un relé. busco el siguiente y lo mando
-            sendRelayMessage(message, receivedContentType, nextNode!!, signatures)
+            val newSignatures = Signatures(signatures.items + signature)
+            sendRelayMessage(message, receivedContentType, nextNode!!, newSignatures)
         } else {
             // me llego algo, no lo tengo que pasar
             if (currentMessageWaiting.value == null) throw BadRequestException("no waiting message")
@@ -77,12 +84,7 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
             currentMessageResponse.update { response }
             resultReady.countDown()
         }
-        return Signature(
-            name = myServerName,
-            hash = receivedHash,
-            contentType = receivedContentType,
-            contentLength = receivedLength
-        )
+        return signature
     }
 
     override fun sendMessage(body: String): PlayResponse {
