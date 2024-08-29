@@ -8,15 +8,19 @@ import ar.edu.austral.inf.sd.server.model.PlayResponse
 import ar.edu.austral.inf.sd.server.model.RegisterResponse
 import ar.edu.austral.inf.sd.server.model.Signature
 import ar.edu.austral.inf.sd.server.model.Signatures
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import org.springframework.web.client.RestTemplate
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.CountDownLatch
@@ -102,10 +106,24 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
     }
 
     internal fun registerToServer(registerHost: String, registerPort: Int) {
-        // @ToDo acá tienen que trabajar ustedes
-        val registerNodeResponse: RegisterResponse = RegisterResponse("", -1, "", "")
-        println("nextNode = ${registerNodeResponse}")
-        nextNode = with(registerNodeResponse) { RegisterResponse(nextHost, nextPort, uuid, hash) }
+        val registerNodeResponse = ServiceHttpRegister(registerHost, registerPort)
+        nextNode = with(registerNodeResponse) {
+            RegisterResponse(nextHost, nextPort, uuid, hash)
+        }
+    }
+
+    private fun ServiceHttpRegister(registerHost: String, registerPort: Int): RegisterResponse {
+        val serverUrl = "http://${registerHost}:${registerPort}/register-node?host=localhost&port=${myServerPort}&name=${myServerName}"
+        val client = HttpClient.newHttpClient()
+        val request = HttpRequest.newBuilder()
+            .uri(java.net.URI.create(serverUrl))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build()
+
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        val objectMapper = jacksonObjectMapper()
+        return objectMapper.readValue(response.body())
     }
 
     private fun sendRelayMessage(body: String, contentType: String, relayNode: RegisterResponse, signatures: Signatures) {
@@ -115,7 +133,6 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
     }
 
     private fun relayMessageToNextNode(body: String, relayNode: RegisterResponse, signatures: Signatures){
-        // mandar mensaje al siguiente nodo a traves de http con POST
         val client = HttpClient.newHttpClient()
         val requestpart1 = HttpRequest.BodyPublishers.ofString(body)
         val requestpart2 = HttpRequest.BodyPublishers.ofString(signatures.toString())
@@ -125,7 +142,7 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
             .POST(requestpart1)
             .POST(requestpart2)
             .build()
-        val response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+        client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
     }
 
     private fun clientSign(message: String, contentType: String): Signature {
