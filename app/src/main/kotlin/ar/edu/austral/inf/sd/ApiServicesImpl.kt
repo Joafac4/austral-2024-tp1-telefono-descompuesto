@@ -100,6 +100,7 @@ class ApiServicesImpl: RegisterNodeApiService, RelayApiService, PlayApiService {
     }
 
     internal fun registerToServer(registerHost: String, registerPort: Int) {
+        // @ToDo acá tienen que trabajar ustedes
         val registerNodeResponse: RegisterResponse = RegisterResponse("", -1, "", "")
         println("nextNode = ${registerNodeResponse}")
         nextNode = with(registerNodeResponse) { RegisterResponse(nextHost, nextPort, uuid, hash) }
